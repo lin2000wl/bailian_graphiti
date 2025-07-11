@@ -1,0 +1,289 @@
+# Graphiti知识图谱内容查看指南
+
+## 概述
+Graphiti知识图谱提供多种方式来查看、管理和分析存储的数据。您可以通过Neo4j浏览器、MCP命令或直接查询来访问图谱内容。
+
+## 查看方式
+
+### 1. Neo4j浏览器界面（推荐）
+
+#### 访问方式
+- **URL**: http://localhost:7474
+- **用户名**: neo4j
+- **密码**: demodemo
+
+#### 常用Cypher查询
+```cypher
+// 查看所有节点类型和数量
+MATCH (n) 
+RETURN labels(n) as NodeType, count(n) as Count
+ORDER BY Count DESC
+
+// 查看所有关系类型
+MATCH ()-[r]->() 
+RETURN type(r) as RelationType, count(r) as Count
+ORDER BY Count DESC
+
+// 查看最近的节点（限制100个）
+MATCH (n) 
+RETURN n 
+ORDER BY n.created_at DESC 
+LIMIT 100
+
+// 查看特定类型的节点
+MATCH (n:Entity) 
+RETURN n.name, n.summary, n.created_at 
+LIMIT 50
+
+// 查看节点之间的关系
+MATCH (n1)-[r]->(n2) 
+RETURN n1.name, type(r), n2.name, r.summary 
+LIMIT 50
+
+// 搜索包含特定关键词的节点
+MATCH (n) 
+WHERE n.name CONTAINS "关键词" OR n.summary CONTAINS "关键词"
+RETURN n
+LIMIT 20
+
+// 查看图谱的基本统计信息
+MATCH (n) 
+OPTIONAL MATCH (n)-[r]->() 
+RETURN 
+  count(DISTINCT n) as TotalNodes,
+  count(r) as TotalRelationships,
+  count(DISTINCT labels(n)) as NodeTypes
+```
+
+### 2. 通过MCP命令查看
+
+如果您已经配置了Cursor的MCP服务，可以使用以下方式：
+
+#### 在Cursor中使用
+```
+@graphiti 搜索所有节点
+@graphiti 查看最近的episodes
+@graphiti 搜索关于[主题]的信息
+@graphiti 显示图谱统计信息
+```
+
+#### 可用的MCP功能
+- **搜索节点**: 查找特定实体和关系
+- **搜索事实**: 查找图中的事实信息
+- **获取episodes**: 查看最近添加的数据
+- **实体管理**: 管理图中的实体
+
+### 3. 直接使用Graphiti API
+
+#### 通过Python脚本
+```python
+import requests
+import json
+
+# 搜索节点
+def search_nodes(query, max_nodes=10):
+    url = "http://localhost:8000/search_memory_nodes"
+    data = {
+        "query": query,
+        "max_nodes": max_nodes
+    }
+    response = requests.post(url, json=data)
+    return response.json()
+
+# 搜索事实
+def search_facts(query, max_facts=10):
+    url = "http://localhost:8000/search_memory_facts"
+    data = {
+        "query": query,
+        "max_facts": max_facts
+    }
+    response = requests.post(url, json=data)
+    return response.json()
+
+# 获取最近的episodes
+def get_episodes(last_n=10):
+    url = "http://localhost:8000/get_episodes"
+    data = {"last_n": last_n}
+    response = requests.post(url, json=data)
+    return response.json()
+
+# 示例使用
+if __name__ == "__main__":
+    # 搜索节点
+    nodes = search_nodes("用户")
+    print("节点搜索结果:", json.dumps(nodes, indent=2, ensure_ascii=False))
+    
+    # 搜索事实
+    facts = search_facts("关系")
+    print("事实搜索结果:", json.dumps(facts, indent=2, ensure_ascii=False))
+    
+    # 获取最近的episodes
+    episodes = get_episodes(5)
+    print("最近的episodes:", json.dumps(episodes, indent=2, ensure_ascii=False))
+```
+
+## 数据结构说明
+
+### 节点类型
+- **Entity**: 实体节点，代表人物、地点、概念等
+- **Episode**: 事件节点，代表时间序列中的事件
+- **Community**: 社区节点，代表实体的聚类
+
+### 关系类型
+- **RELATES_TO**: 一般关系
+- **PART_OF**: 部分关系
+- **SIMILAR_TO**: 相似关系
+- **TEMPORAL**: 时间关系
+
+### 节点属性
+- **name**: 节点名称
+- **summary**: 节点摘要
+- **created_at**: 创建时间
+- **updated_at**: 更新时间
+- **group_id**: 组标识符
+
+## 可视化查看
+
+### Neo4j浏览器可视化
+1. 在Neo4j浏览器中执行查询
+2. 点击"Graph"视图查看图形化结果
+3. 使用鼠标拖拽和缩放来探索图谱
+4. 点击节点查看详细属性
+
+### 自定义可视化查询
+```cypher
+// 查看特定实体的邻居节点
+MATCH (center:Entity {name: "目标实体"})-[r]-(neighbor)
+RETURN center, r, neighbor
+
+// 查看路径关系
+MATCH path = (start:Entity)-[*1..3]-(end:Entity)
+WHERE start.name = "起始实体" AND end.name = "目标实体"
+RETURN path
+LIMIT 10
+
+// 查看社区结构
+MATCH (c:Community)-[:PART_OF]-(e:Entity)
+RETURN c, e
+LIMIT 50
+```
+
+## 数据管理
+
+### 添加数据
+```python
+# 通过MCP API添加episode
+def add_episode(name, content, source="text"):
+    url = "http://localhost:8000/add_memory"
+    data = {
+        "name": name,
+        "episode_body": content,
+        "source": source
+    }
+    response = requests.post(url, json=data)
+    return response.json()
+
+# 示例
+add_episode("用户交互", "用户询问了关于产品功能的问题", "message")
+```
+
+### 删除数据
+```cypher
+// 删除特定节点
+MATCH (n:Entity {name: "要删除的实体"})
+DETACH DELETE n
+
+// 清空所有数据（谨慎使用）
+MATCH (n)
+DETACH DELETE n
+```
+
+## 监控和统计
+
+### 图谱健康状态
+```cypher
+// 查看图谱大小
+MATCH (n)
+OPTIONAL MATCH (n)-[r]->()
+RETURN 
+  count(DISTINCT n) as nodes,
+  count(r) as relationships,
+  count(DISTINCT labels(n)) as node_types,
+  count(DISTINCT type(r)) as relationship_types
+
+// 查看数据分布
+MATCH (n)
+RETURN labels(n)[0] as NodeType, count(n) as Count
+ORDER BY Count DESC
+
+// 查看最活跃的实体
+MATCH (n)-[r]-()
+RETURN n.name, count(r) as connections
+ORDER BY connections DESC
+LIMIT 20
+```
+
+### 数据质量检查
+```cypher
+// 查找孤立节点
+MATCH (n)
+WHERE NOT (n)-[]-()
+RETURN n
+
+// 查找重复实体
+MATCH (n1:Entity), (n2:Entity)
+WHERE n1.name = n2.name AND id(n1) < id(n2)
+RETURN n1, n2
+```
+
+## 最佳实践
+
+### 1. 定期备份
+```bash
+# 导出图谱数据
+docker compose exec neo4j neo4j-admin dump --database=neo4j --to=/data/backup.dump
+
+# 恢复数据
+docker compose exec neo4j neo4j-admin load --from=/data/backup.dump --database=neo4j
+```
+
+### 2. 性能优化
+- 为常用查询创建索引
+- 限制查询结果数量
+- 使用分页查询大量数据
+
+### 3. 数据组织
+- 使用group_id组织不同项目的数据
+- 定期清理过期数据
+- 维护数据质量和一致性
+
+## 故障排除
+
+### 常见问题
+1. **无法连接Neo4j**: 检查Docker服务状态
+2. **查询超时**: 优化查询语句，添加限制条件
+3. **数据不一致**: 运行数据质量检查查询
+
+### 调试工具
+```bash
+# 查看Neo4j日志
+docker compose logs neo4j
+
+# 查看MCP服务日志
+docker compose logs graphiti-mcp
+
+# 检查服务状态
+docker compose ps
+```
+
+## 配置状态
+- ✅ Neo4j浏览器访问配置
+- ✅ 常用Cypher查询示例
+- ✅ MCP API使用说明
+- ✅ Python脚本示例
+- ✅ 数据管理和监控方法
+- ⏳ 等待用户实际操作和反馈
+description:
+globs:
+alwaysApply: false
+---

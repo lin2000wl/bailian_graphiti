@@ -38,9 +38,9 @@ from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 load_dotenv()
 
 
-DEFAULT_LLM_MODEL = 'gpt-4.1-mini'
-SMALL_LLM_MODEL = 'gpt-4.1-nano'
-DEFAULT_EMBEDDER_MODEL = 'text-embedding-3-small'
+DEFAULT_LLM_MODEL = 'qwen-max-latest'
+SMALL_LLM_MODEL = 'qwen-turbo-latest'
+DEFAULT_EMBEDDER_MODEL = 'text-embedding-v4'
 
 # Semaphore limit for concurrent Graphiti operations.
 # Decrease this if you're experiencing 429 rate limit errors from your LLM provider.
@@ -364,7 +364,12 @@ class GraphitiEmbedderConfig(BaseModel):
         """Create embedder configuration from environment variables."""
 
         # Get model from environment, or use default if not set or empty
-        model_env = os.environ.get('EMBEDDER_MODEL_NAME', '')
+        # Check multiple possible environment variable names for compatibility
+        model_env = (os.environ.get('EMBEDDING_MODEL', '') or 
+                    os.environ.get('EMBEDDER_MODEL', '') or 
+                    os.environ.get('EMBEDDER_MODEL_NAME', '') or
+                    os.environ.get('DEFAULT_EMBEDDER_MODEL', '') or
+                    os.environ.get('OPENAI_EMBEDDING_MODEL', ''))
         model = model_env if model_env.strip() else DEFAULT_EMBEDDER_MODEL
 
         azure_openai_endpoint = os.environ.get('AZURE_OPENAI_EMBEDDING_ENDPOINT', None)

@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class AzureOpenAIEmbedderClient(EmbedderClient):
     """Wrapper class for AsyncAzureOpenAI that implements the EmbedderClient interface."""
 
-    def __init__(self, azure_client: AsyncAzureOpenAI, model: str = 'text-embedding-3-small'):
+    def __init__(self, azure_client: AsyncAzureOpenAI, model: str = 'text-embedding-v4'):
         self.azure_client = azure_client
         self.model = model
 

@@ -17,7 +17,7 @@ limitations under the License.
 import json
 from typing import Any, Protocol, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .models import Message, PromptFunction, PromptVersion
 
@@ -32,6 +32,21 @@ class EdgeDuplicate(BaseModel):
         description='List of ids of facts that should be invalidated. If no facts should be invalidated, the list should be empty.',
     )
     fact_type: str = Field(..., description='One of the provided fact types or DEFAULT')
+
+    @model_validator(mode='before')
+    @classmethod
+    def handle_edge_duplicate_field(cls, values):
+        # Handle case where API returns different field names or missing fields
+        if isinstance(values, dict):
+            # Ensure required fields exist with defaults
+            if 'duplicate_facts' not in values:
+                values['duplicate_facts'] = []
+            if 'contradicted_facts' not in values:
+                values['contradicted_facts'] = []
+            if 'fact_type' not in values:
+                values['fact_type'] = 'DEFAULT'
+        
+        return values
 
 
 class UniqueFact(BaseModel):
@@ -59,7 +74,7 @@ def edge(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are a helpful assistant that de-duplicates edges from edge lists.',
+            content='You are a helpful assistant that de-duplicates edges from edge lists. Please respond in JSON format.',
         ),
         Message(
             role='user',
@@ -81,6 +96,8 @@ def edge(context: dict[str, Any]) -> list[Message]:
 
         Guidelines:
         1. The facts do not need to be completely identical to be duplicates, they just need to express the same information.
+        
+        Please respond in JSON format.
         """,
         ),
     ]
@@ -90,7 +107,7 @@ def edge_list(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are a helpful assistant that de-duplicates edges from edge lists.',
+            content='You are a helpful assistant that de-duplicates edges from edge lists. Please respond in JSON format.',
         ),
         Message(
             role='user',
@@ -109,6 +126,8 @@ def edge_list(context: dict[str, Any]) -> list[Message]:
         3. Facts will often discuss the same or similar relation between identical entities
         4. The final list should have only unique facts. If 3 facts are all duplicates of each other, only one of their
             facts should be in the response
+        
+        Please respond in JSON format.
         """,
         ),
     ]
@@ -119,7 +138,7 @@ def resolve_edge(context: dict[str, Any]) -> list[Message]:
         Message(
             role='system',
             content='You are a helpful assistant that de-duplicates facts from fact lists and determines which existing '
-            'facts are contradicted by the new fact.',
+            'facts are contradicted by the new fact. Please respond in JSON format.',
         ),
         Message(
             role='user',
@@ -155,6 +174,8 @@ def resolve_edge(context: dict[str, Any]) -> list[Message]:
         Guidelines:
         1. The facts do not need to be completely identical to be duplicates, they just need to express the same information.
         2. Some facts may be very similar but will have key differences, particularly around numeric values in the facts.
+        
+        Please respond in JSON format.
         """,
         ),
     ]

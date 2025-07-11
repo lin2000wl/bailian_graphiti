@@ -1,0 +1,185 @@
+# Graphiti MCP服务 Docker部署指南
+
+## 项目概述
+Graphiti MCP服务是一个基于知识图谱的模型上下文协议(MCP)服务器，支持通过Docker容器化部署。该服务包含Neo4j图数据库和Graphiti MCP服务器两个核心组件。
+
+## 部署架构
+- **Neo4j数据库**: 图数据库，用于存储知识图谱数据
+- **Graphiti MCP服务器**: 基于Python的MCP服务器，提供知识图谱操作API
+- **Docker网络**: 容器间通信网络
+- **数据持久化**: 通过Docker卷持久化Neo4j数据
+
+## 环境要求
+- Docker 20.10+
+- Docker Compose 2.0+
+- 至少2GB可用内存
+- 至少1GB可用磁盘空间
+
+## 部署步骤
+
+### 1. 环境配置
+当前`.env`文件已配置：
+```bash
+# Neo4j数据库配置
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=882795100
+
+# OpenAI API配置
+OPENAI_API_KEY=sk-5e0e2df5e99b45edb9cd27b136b235df
+MODEL_NAME=qwen-max-latest
+OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+### 2. Docker部署命令
+```bash
+# 进入MCP服务器目录
+cd mcp_server
+
+# 启动所有服务
+docker compose up -d
+
+# 查看服务状态
+docker compose ps
+
+# 查看日志
+docker compose logs -f
+```
+
+### 3. 服务端口映射
+- **Neo4j HTTP界面**: http://localhost:7474
+- **Neo4j Bolt协议**: bolt://localhost:7687
+- **Graphiti MCP服务**: http://localhost:8000
+
+### 4. 验证部署
+```bash
+# 检查Neo4j是否正常运行
+curl -I http://localhost:7474
+
+# 检查MCP服务是否正常运行
+curl -I http://localhost:8000
+
+# 查看容器状态
+docker compose ps
+```
+
+## 服务配置详情
+
+### Neo4j配置
+- **镜像版本**: neo4j:5.26.0
+- **认证信息**: neo4j/demodemo (Docker Compose默认)
+- **内存配置**: 
+  - 初始堆内存: 512m
+  - 最大堆内存: 1G
+  - 页面缓存: 512m
+- **数据持久化**: 通过Docker卷保存数据和日志
+
+### Graphiti MCP服务配置
+- **镜像**: zepai/knowledge-graph-mcp:latest
+- **传输协议**: SSE (Server-Sent Events)
+- **并发限制**: 10个并发操作
+- **健康检查**: 依赖Neo4j服务健康状态
+
+## 常用管理命令
+
+### 启动和停止
+```bash
+# 启动服务
+docker compose up -d
+
+# 停止服务
+docker compose down
+
+# 重启服务
+docker compose restart
+
+# 停止并删除数据卷
+docker compose down -v
+```
+
+### 日志管理
+```bash
+# 查看所有服务日志
+docker compose logs
+
+# 查看特定服务日志
+docker compose logs neo4j
+docker compose logs graphiti-mcp
+
+# 实时跟踪日志
+docker compose logs -f
+```
+
+### 数据管理
+```bash
+# 备份Neo4j数据
+docker compose exec neo4j neo4j-admin dump --database=neo4j --to=/data/backup.dump
+
+# 进入Neo4j容器
+docker compose exec neo4j bash
+
+# 进入MCP服务容器
+docker compose exec graphiti-mcp bash
+```
+
+## 故障排除
+
+### 常见问题
+1. **端口冲突**: 确保7474、7687、8000端口未被占用
+2. **内存不足**: 调整Neo4j内存配置或增加系统内存
+3. **API密钥错误**: 检查`.env`文件中的API密钥配置
+4. **网络连接**: 确保容器间网络通信正常
+
+### 调试命令
+```bash
+# 查看容器网络
+docker network ls
+docker network inspect mcp_server_default
+
+# 查看容器详情
+docker compose exec graphiti-mcp env
+docker compose exec neo4j env
+
+# 测试容器间连接
+docker compose exec graphiti-mcp ping neo4j
+```
+
+## 安全建议
+1. 修改Neo4j默认密码
+2. 限制端口访问权限
+3. 定期备份数据
+4. 监控容器资源使用情况
+5. 保护API密钥安全
+
+## 扩展配置
+- 可通过修改`docker-compose.yml`调整资源限制
+- 支持添加环境变量进行自定义配置
+- 可集成外部监控和日志收集系统
+
+## 部署状态
+- ✅ 环境配置完成
+- ✅ Docker配置文件就绪
+- ✅ 环境变量配置修复（NEO4J_URI改为bolt://neo4j:7687）
+- ✅ Docker Compose服务启动成功
+- ✅ Neo4j容器健康状态正常
+- ✅ Graphiti MCP服务容器启动成功
+- ✅ MCP服务器运行在 http://0.0.0.0:8000 (SSE传输)
+- ⏳ 等待用户验证服务可用性
+
+## 部署结果
+根据日志显示，服务已成功部署：
+- Neo4j数据库运行在端口7474(HTTP)和7687(Bolt)
+- Graphiti MCP服务运行在端口8000
+- 服务使用SSE传输协议
+- 默认组ID: default
+- 并发限制: 10个操作
+- 自定义实体提取: 已禁用
+
+## 下一步操作
+1. 在浏览器中访问 http://localhost:7474 验证Neo4j界面
+2. 配置MCP客户端连接到 http://localhost:8000/sse
+3. 测试知识图谱操作功能
+description:
+globs:
+alwaysApply: false
+---

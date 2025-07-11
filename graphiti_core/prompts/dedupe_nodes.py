@@ -17,7 +17,7 @@ limitations under the License.
 import json
 from typing import Any, Protocol, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .models import Message, PromptFunction, PromptVersion
 
@@ -41,6 +41,55 @@ class NodeDuplicate(BaseModel):
 class NodeResolutions(BaseModel):
     entity_resolutions: list[NodeDuplicate] = Field(..., description='List of resolved nodes')
 
+    @model_validator(mode='before')
+    @classmethod
+    def handle_entity_resolutions_field(cls, values):
+        # Handle case where API returns a list directly instead of an object
+        if isinstance(values, list):
+            # Process each entity in the list to ensure required fields
+            processed_entities = []
+            for entity in values:
+                if isinstance(entity, dict):
+                    entity = entity.copy()
+                    # Ensure duplicates field exists
+                    if 'duplicates' not in entity:
+                        entity['duplicates'] = []
+                processed_entities.append(entity)
+            return {'entity_resolutions': processed_entities}
+        
+        if isinstance(values, dict):
+            # Handle different field names from different APIs
+            if 'entity_resolutions' in values and isinstance(values['entity_resolutions'], list):
+                processed_entities = []
+                for entity in values['entity_resolutions']:
+                    if isinstance(entity, dict):
+                        entity = entity.copy()
+                        # Ensure duplicates field exists
+                        if 'duplicates' not in entity:
+                            entity['duplicates'] = []
+                    processed_entities.append(entity)
+                values['entity_resolutions'] = processed_entities
+            
+            # Handle case where there's no entity_resolutions key but there are entities
+            if 'entity_resolutions' not in values:
+                # Look for any key that contains a list of entities
+                for key, value in values.items():
+                    if isinstance(value, list) and len(value) > 0:
+                        # Check if this looks like a list of entities
+                        if isinstance(value[0], dict) and ('name' in value[0] or 'id' in value[0]):
+                            processed_entities = []
+                            for entity in value:
+                                if isinstance(entity, dict):
+                                    entity = entity.copy()
+                                    # Ensure duplicates field exists
+                                    if 'duplicates' not in entity:
+                                        entity['duplicates'] = []
+                                processed_entities.append(entity)
+                            values = {'entity_resolutions': processed_entities}
+                            break
+        
+        return values
+
 
 class Prompt(Protocol):
     node: PromptVersion
@@ -58,7 +107,7 @@ def node(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are a helpful assistant that determines whether or not a NEW ENTITY is a duplicate of any EXISTING ENTITIES.',
+            content='You are a helpful assistant that determines whether or not a NEW ENTITY is a duplicate of any EXISTING ENTITIES. Please respond in JSON format.',
         ),
         Message(
             role='user',
@@ -98,6 +147,8 @@ def node(context: dict[str, Any]) -> list[Message]:
         
         Also return the full name of the NEW ENTITY (whether it is the name of the NEW ENTITY, a node it
         is a duplicate of, or a combination of the two).
+        
+        Please respond in JSON format.
         """,
         ),
     ]
@@ -107,8 +158,8 @@ def nodes(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are a helpful assistant that determines whether or not ENTITIES extracted from a conversation are duplicates'
-            'of existing entities.',
+            content='You are a helpful assistant that determines whether or not ENTITIES extracted from a conversation are duplicates '
+            'of existing entities. Please respond in JSON format.',
         ),
         Message(
             role='user',
@@ -163,6 +214,8 @@ def nodes(context: dict[str, Any]) -> list[Message]:
         - If an entity is a duplicate of one of the EXISTING ENTITIES, return the idx of the candidate it is a 
         duplicate of.
         - If an entity is not a duplicate of one of the EXISTING ENTITIES, return the -1 as the duplication_idx
+        
+        Please respond in JSON format.
         """,
         ),
     ]

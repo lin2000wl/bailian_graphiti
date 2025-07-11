@@ -143,6 +143,16 @@ class OpenAIGenericClient(LLMClient):
                 response = await self._generate_response(
                     messages, response_model, max_tokens=max_tokens, model_size=model_size
                 )
+                
+                # If we have a response_model, validate the response
+                if response_model is not None:
+                    try:
+                        model_instance = response_model.model_validate(response)
+                        return model_instance.model_dump()
+                    except Exception as validation_error:
+                        # Re-raise validation error to trigger retry
+                        raise validation_error
+                
                 return response
             except (RateLimitError, RefusalError):
                 # These errors should not trigger retries

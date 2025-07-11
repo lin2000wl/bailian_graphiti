@@ -1,0 +1,184 @@
+# Cursor配置Graphiti MCP服务指南
+
+## 配置概述
+Cursor支持通过MCP (Model Context Protocol) 连接到Graphiti知识图谱服务。我们已经部署的服务支持SSE传输协议，可以通过HTTP连接。
+
+## 配置步骤
+
+### 1. 找到Cursor配置文件
+Cursor的MCP配置文件位置：
+- **Windows**: `%APPDATA%\Cursor\User\globalStorage\cursor.mcp\config.json`
+- **macOS**: `~/Library/Application Support/Cursor/User/globalStorage/cursor.mcp/config.json`
+- **Linux**: `~/.config/Cursor/User/globalStorage/cursor.mcp/config.json`
+
+### 2. 创建或编辑配置文件
+如果配置文件不存在，需要创建它。配置文件应包含以下内容：
+
+```json
+{
+    "mcpServers": {
+        "graphiti": {
+            "transport": "sse",
+            "url": "http://localhost:8000/sse"
+        }
+    }
+}
+```
+
+### 3. 完整配置示例
+如果您已有其他MCP服务，可以添加到现有配置中：
+
+```json
+{
+    "mcpServers": {
+        "graphiti": {
+            "transport": "sse",
+            "url": "http://localhost:8000/sse"
+        },
+        "其他服务": {
+            "transport": "stdio",
+            "command": "其他命令"
+        }
+    }
+}
+```
+
+### 4. 验证配置
+1. 确保Docker服务正在运行：
+   ```bash
+   docker compose ps
+   ```
+
+2. 确保MCP服务可访问：
+   - 在浏览器中访问 http://localhost:8000
+   - 应该看到MCP服务的响应
+
+3. 重启Cursor以加载新配置
+
+## 配置详情
+
+### 传输协议说明
+- **SSE (Server-Sent Events)**: HTTP-based传输，适合Docker部署
+- **stdio**: 直接运行Python进程，适合本地开发
+
+### 当前部署配置
+- **服务地址**: http://localhost:8000/sse
+- **传输协议**: SSE
+- **服务状态**: 运行中
+- **Neo4j界面**: http://localhost:7474
+
+## 使用方法
+
+### 1. 在Cursor中使用
+配置完成后，您可以在Cursor中：
+- 使用@graphiti前缀调用MCP功能
+- 通过AI助手访问知识图谱功能
+- 管理和查询图数据
+
+### 2. 可用功能
+- **Episode管理**: 添加、检索、删除文本数据
+- **实体管理**: 搜索和管理图中的节点和关系
+- **搜索功能**: 语义搜索和混合搜索
+- **组管理**: 按group_id组织数据
+- **图维护**: 清理图数据和重建索引
+
+## 故障排除
+
+### 常见问题
+1. **连接失败**:
+   - 检查Docker服务是否运行
+   - 确认端口8000未被占用
+   - 验证配置文件语法正确
+
+2. **Cursor无法识别MCP服务**:
+   - 重启Cursor应用
+   - 检查配置文件路径是否正确
+   - 验证JSON格式是否有效
+
+3. **服务响应错误**:
+   - 查看Docker日志：`docker compose logs -f`
+   - 检查Neo4j数据库连接状态
+   - 验证环境变量配置
+
+### 调试命令
+```bash
+# 检查服务状态
+docker compose ps
+
+# 查看服务日志
+docker compose logs graphiti-mcp
+
+# 测试服务连接
+curl -I http://localhost:8000
+
+# 重启服务
+docker compose restart
+```
+
+## 高级配置
+
+### 自定义配置选项
+如果需要自定义配置，可以修改Docker环境变量：
+
+```bash
+# 修改 .env 文件
+GROUP_ID=my_project
+SEMAPHORE_LIMIT=5
+MODEL_NAME=gpt-4
+```
+
+### 多环境配置
+可以为不同项目配置不同的group_id：
+
+```json
+{
+    "mcpServers": {
+        "graphiti-project1": {
+            "transport": "sse",
+            "url": "http://localhost:8000/sse?group_id=project1"
+        },
+        "graphiti-project2": {
+            "transport": "sse",
+            "url": "http://localhost:8000/sse?group_id=project2"
+        }
+    }
+}
+```
+
+## 配置状态
+- ✅ Docker服务部署完成
+- ✅ MCP服务运行在 http://localhost:8000/sse
+- ✅ 配置文件示例已提供
+- ✅ PowerShell自动配置脚本已创建
+- ✅ 手动配置步骤已详细说明
+- ⏳ 等待用户配置Cursor
+- ⏳ 等待用户测试MCP功能
+
+## 快速配置
+### Windows用户配置路径
+```
+%APPDATA%\Cursor\User\globalStorage\cursor.mcp\config.json
+```
+
+### 配置内容
+```json
+{
+    "mcpServers": {
+        "graphiti": {
+            "transport": "sse",
+            "url": "http://localhost:8000/sse"
+        }
+    }
+}
+```
+
+## 下一步
+1. 根据操作系统找到Cursor配置文件位置
+2. 创建或编辑config.json文件
+3. 添加Graphiti MCP服务配置
+4. 重启Cursor
+5. 测试MCP功能是否正常工作
+description:
+globs:
+alwaysApply: false
+---

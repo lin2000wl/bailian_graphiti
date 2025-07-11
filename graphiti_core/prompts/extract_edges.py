@@ -17,7 +17,7 @@ limitations under the License.
 import json
 from typing import Any, Protocol, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .models import Message, PromptFunction, PromptVersion
 
@@ -40,6 +40,88 @@ class Edge(BaseModel):
 class ExtractedEdges(BaseModel):
     edges: list[Edge]
 
+    @model_validator(mode='before')
+    @classmethod
+    def handle_edges_field(cls, values):
+        # Handle case where API returns a list directly instead of an object
+        if isinstance(values, list):
+            # Process each edge in the list to handle field mapping
+            processed_edges = []
+            for edge in values:
+                if isinstance(edge, dict):
+                    edge = edge.copy()
+                    # Handle field mapping if needed
+                    if 'subject_id' in edge and 'source_entity_id' not in edge:
+                        edge['source_entity_id'] = edge['subject_id']
+                        del edge['subject_id']
+                    if 'object_id' in edge and 'target_entity_id' not in edge:
+                        edge['target_entity_id'] = edge['object_id']
+                        del edge['object_id']
+                    # Ensure fact field exists
+                    if 'fact' not in edge:
+                        # Create a default fact based on relation_type
+                        relation_type = edge.get('relation_type', 'RELATES_TO')
+                        source_id = edge.get('source_entity_id', 'entity')
+                        target_id = edge.get('target_entity_id', 'entity')
+                        edge['fact'] = f"Entity {source_id} {relation_type.lower().replace('_', ' ')} entity {target_id}"
+                processed_edges.append(edge)
+            return {'edges': processed_edges}
+        
+        if isinstance(values, dict):
+            # Handle different field names from different APIs
+            if 'edges' in values and isinstance(values['edges'], list):
+                processed_edges = []
+                for edge in values['edges']:
+                    if isinstance(edge, dict):
+                        edge = edge.copy()
+                        # Handle field mapping if needed
+                        if 'subject_id' in edge and 'source_entity_id' not in edge:
+                            edge['source_entity_id'] = edge['subject_id']
+                            del edge['subject_id']
+                        if 'object_id' in edge and 'target_entity_id' not in edge:
+                            edge['target_entity_id'] = edge['object_id']
+                            del edge['object_id']
+                        # Ensure fact field exists
+                        if 'fact' not in edge:
+                            # Create a default fact based on relation_type
+                            relation_type = edge.get('relation_type', 'RELATES_TO')
+                            source_id = edge.get('source_entity_id', 'entity')
+                            target_id = edge.get('target_entity_id', 'entity')
+                            edge['fact'] = f"Entity {source_id} {relation_type.lower().replace('_', ' ')} entity {target_id}"
+                    processed_edges.append(edge)
+                values['edges'] = processed_edges
+            
+            # Handle case where there's no edges key but there are edges
+            if 'edges' not in values:
+                # Look for any key that contains a list of edges
+                for key, value in values.items():
+                    if isinstance(value, list) and len(value) > 0:
+                        # Check if this looks like a list of edges
+                        if isinstance(value[0], dict) and ('relation_type' in value[0] or 'subject_id' in value[0]):
+                            processed_edges = []
+                            for edge in value:
+                                if isinstance(edge, dict):
+                                    edge = edge.copy()
+                                    # Handle field mapping if needed
+                                    if 'subject_id' in edge and 'source_entity_id' not in edge:
+                                        edge['source_entity_id'] = edge['subject_id']
+                                        del edge['subject_id']
+                                    if 'object_id' in edge and 'target_entity_id' not in edge:
+                                        edge['target_entity_id'] = edge['object_id']
+                                        del edge['object_id']
+                                    # Ensure fact field exists
+                                    if 'fact' not in edge:
+                                        # Create a default fact based on relation_type
+                                        relation_type = edge.get('relation_type', 'RELATES_TO')
+                                        source_id = edge.get('source_entity_id', 'entity')
+                                        target_id = edge.get('target_entity_id', 'entity')
+                                        edge['fact'] = f"Entity {source_id} {relation_type.lower().replace('_', ' ')} entity {target_id}"
+                                processed_edges.append(edge)
+                            values = {'edges': processed_edges}
+                            break
+        
+        return values
+
 
 class MissingFacts(BaseModel):
     missing_facts: list[str] = Field(..., description="facts that weren't extracted")
@@ -61,7 +143,7 @@ def edge(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are an expert fact extractor that extracts fact triples from text. '
+            content='You are an expert fact extractor that extracts fact triples from text. Please respond in JSON format. '
             '1. Extracted fact triples should also be extracted with relevant date information.'
             '2. Treat the CURRENT TIME as the time the CURRENT MESSAGE was sent. All temporal information should be extracted relative to this time.',
         ),
@@ -116,19 +198,21 @@ You may use information from the PREVIOUS MESSAGES only to disambiguate referenc
 
 # DATETIME RULES
 
-- Use ISO 8601 with “Z” suffix (UTC) (e.g., 2025-04-30T00:00:00Z).
+- Use ISO 8601 with "Z" suffix (UTC) (e.g., 2025-04-30T00:00:00Z).
 - If the fact is ongoing (present tense), set `valid_at` to REFERENCE_TIME.
 - If a change/termination is expressed, set `invalid_at` to the relevant timestamp.
 - Leave both fields `null` if no explicit or resolvable time is stated.
 - If only a date is mentioned (no time), assume 00:00:00.
 - If only a year is mentioned, use January 1st at 00:00:00.
+
+Please respond in JSON format.
         """,
         ),
     ]
 
 
 def reflexion(context: dict[str, Any]) -> list[Message]:
-    sys_prompt = """You are an AI assistant that determines which facts have not been extracted from the given context"""
+    sys_prompt = """You are an AI assistant that determines which facts have not been extracted from the given context. Please respond in JSON format."""
 
     user_prompt = f"""
 <PREVIOUS MESSAGES>
@@ -148,6 +232,8 @@ def reflexion(context: dict[str, Any]) -> list[Message]:
 
 Given the above MESSAGES, list of EXTRACTED ENTITIES entities, and list of EXTRACTED FACTS; 
 determine if any facts haven't been extracted.
+
+Please respond in JSON format.
 """
     return [
         Message(role='system', content=sys_prompt),
